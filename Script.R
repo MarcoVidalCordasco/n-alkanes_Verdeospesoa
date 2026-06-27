@@ -68,6 +68,7 @@ library(tidyr)
 library(tidyverse)
 library(patchwork)
 library(knitr) 
+library(zoo)
 
 
 pd_df <- read.xlsx("Data.xlsx", sheet= "Present_day")
@@ -99,6 +100,9 @@ ggplot(pd_df, aes(x = M)) +
 
 n_akanes_df <- read.xlsx("Data.xlsx", sheet= "R")
 
+# Compute D offset
+n_akanes_df$terr_aq_D23_D31 <- 1000 * ((n_akanes_df$D23 + 1000) / (n_akanes_df$D31 + 1000) - 1)
+n_akanes_df$terr_aq_D23_D29 <- 1000 * ((n_akanes_df$D23 + 1000) / (n_akanes_df$D29 + 1000) - 1)
 
 head(n_akanes_df)
 
@@ -141,11 +145,23 @@ Summary_df <- n_akanes_df %>%
     c31c27_mean = mean(`c31/c27`, na.rm = TRUE),
     c31c27_sd   = sd(`c31/c27`, na.rm = TRUE),
     c31c27_min  = min(`c31/c27`, na.rm = TRUE),
-    c31c27_max  = max(`c31/c27`, na.rm = TRUE)
+    c31c27_max  = max(`c31/c27`, na.rm = TRUE),
+    
+    terr_aq_D23_D31_mean = mean(terr_aq_D23_D31, na.rm = TRUE),
+    terr_aq_D23_D31_sd   = sd(terr_aq_D23_D31, na.rm = TRUE),
+    terr_aq_D23_D31_min  = min(terr_aq_D23_D31, na.rm = TRUE),
+    terr_aq_D23_D31_max  = max(terr_aq_D23_D31, na.rm = TRUE),
+    
+    terr_aq_D23_D29_mean = mean(terr_aq_D23_D29, na.rm = TRUE),
+    terr_aq_D23_D29_sd   = sd(terr_aq_D23_D29, na.rm = TRUE),
+    terr_aq_D23_D29_min  = min(terr_aq_D23_D29, na.rm = TRUE),
+    terr_aq_D23_D29_max  = max(terr_aq_D23_D29, na.rm = TRUE)
   )
 
 
-View(Summary_df)
+Summary_df
+view(Summary_df)
+print(Summary_df)
 write.xlsx(Summary_df, "Summary_df.xlsx")
 
 wilcox.test(CPI ~ Period, data = n_akanes_df)
@@ -369,164 +385,322 @@ find_closest_depth <- function(age_break) {
 depth_labels <- sapply(age_breaks, find_closest_depth)
 ncol(n_akanes_df)
 
-C31_C29<- ggplot(n_akanes_df, aes(x = Depth)) +
+
+
+
+n_akanes_df$MA5 <- zoo::rollmean(
+  n_akanes_df$`c31/c29`,
+  k = 3,
+  fill = NA,
+  align = "center",
+  na.rm = TRUE
+)
+
+C31_C29 <- ggplot(n_akanes_df, aes(x = Depth)) +
   geom_rect(data = event_rects,
             aes(xmin = depth_end, xmax = depth_start,
                 ymin = -Inf, ymax = Inf),
             inherit.aes = FALSE,
             fill = "grey80", alpha = 0.3) +
-  geom_point(aes(y = `c31/c29`), color = "#FF7F00", size = 2, shape = 16, alpha = 0.8) +
-  geom_line(data = na.omit(n_akanes_df[, c("Depth", "c31/c29")]), 
-            aes(y = `c31/c29`), color = "#FF7F00", linewidth = 1, alpha = 0.7) +
   
-  labs(y = "C31/C29 ratio", , x = "") +
+  geom_point(aes(y = `c31/c29`),
+             color = "#FF7F00", size = 2, alpha = 0.8) +
+  
+  # Original data
+  geom_line(
+    data = na.omit(n_akanes_df[, c("Depth", "c31/c29")]),
+    aes(y = `c31/c29`),
+            color = "#FF7F00",
+            linewidth = 0.7,
+            alpha = 0.5) +
+  
+  # Moving average (bold line)
+  geom_line(
+    data = na.omit(n_akanes_df[, c("Depth", "MA5")]),
+    aes(y = MA5),
+    color = "#FF7F00",
+    linewidth = 1.8
+  ) +
+  
+  labs(
+    y = "C31/C29 ratio",
+    x = ""
+  ) +
+  
   theme_minimal(base_size = 12) +
   theme(
     panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
     panel.grid.minor = element_blank(),
     panel.border = element_rect(fill = NA, color = "gray70", linewidth = 0.8),
     plot.title = element_text(hjust = 0.5, face = "bold", size = 13)
-  )
+  )+
+scale_x_reverse()
+
 
 C31_C29
 
-  
-  
 
-C31_C27<- ggplot(n_akanes_df, aes(x = Depth)) +
+
+
+
+
+n_akanes_df$MA5 <- zoo::rollmean(
+  n_akanes_df$`c31/c27`,
+  k = 3,
+  fill = NA,
+  align = "center",
+  na.rm = TRUE
+)
+
+C31_C27 <- ggplot(n_akanes_df, aes(x = Depth)) +
   geom_rect(data = event_rects,
             aes(xmin = depth_end, xmax = depth_start,
                 ymin = -Inf, ymax = Inf),
             inherit.aes = FALSE,
             fill = "grey80", alpha = 0.3) +
-  geom_point(aes(y = `c31/c27`), color = "darkorange4", size = 2, shape = 16, alpha = 0.8) +
-  geom_line(data = na.omit(n_akanes_df[, c("Depth", "c31/c27")]), 
-            aes(y = `c31/c27`), color = "darkorange4", linewidth = 1, alpha = 0.7) +
-  scale_x_reverse(
-    sec.axis = sec_axis(
-      ~ .,
-      breaks = depth_labels,
-      labels = age_breaks/1000
-    )
+  
+  geom_point(aes(y = `c31/c27`),
+             color = "darkorange4", size = 2, alpha = 0.8) +
+  
+  # Original data
+  geom_line(
+    data = na.omit(n_akanes_df[, c("Depth", "c31/c27")]),
+    aes(y = `c31/c27`),
+    color = "darkorange4",
+    linewidth = 0.7,
+    alpha = 0.5) +
+  
+  # Moving average (bold line)
+  geom_line(
+    data = na.omit(n_akanes_df[, c("Depth", "MA5")]),
+    aes(y = MA5),
+    color = "darkorange4",
+    linewidth = 1.8
   ) +
-  labs(y = "C31/C27 ratio",  x = "") +
+  
+  labs(
+    y = "C31_C27 ratio",
+    x = ""
+  ) +
+  
   theme_minimal(base_size = 12) +
   theme(
     panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
     panel.grid.minor = element_blank(),
     panel.border = element_rect(fill = NA, color = "gray70", linewidth = 0.8),
     plot.title = element_text(hjust = 0.5, face = "bold", size = 13)
-  )
+  )+
+  scale_x_reverse()
 
 C31_C27
 
-CPI<- ggplot(n_akanes_df, aes(x = Depth)) +
+
+
+n_akanes_df$MA5 <- zoo::rollmean(
+  n_akanes_df$`CPI`,
+  k = 3,
+  fill = NA,
+  align = "center",
+  na.rm = TRUE
+)
+
+CPI <- ggplot(n_akanes_df, aes(x = Depth)) +
   geom_rect(data = event_rects,
             aes(xmin = depth_end, xmax = depth_start,
                 ymin = -Inf, ymax = Inf),
             inherit.aes = FALSE,
             fill = "grey80", alpha = 0.3) +
-  geom_point(aes(y = CPI), color = "black", size = 2, shape = 16, alpha = 0.8) +
-  geom_line(data = na.omit(n_akanes_df[, c("Depth", "CPI")]), 
-            aes(y = CPI), color = "black", linewidth = 1, alpha = 0.7) +
-  scale_x_reverse(
-    sec.axis = sec_axis(
-      ~ .,
-      breaks = depth_labels,
-      labels = age_breaks/1000
-    )
+  
+  geom_point(aes(y = `CPI`),
+             color = "black", size = 2, alpha = 0.8) +
+  
+  # Original data
+  geom_line(
+    data = na.omit(n_akanes_df[, c("Depth", "CPI")]),
+    aes(y = `CPI`),
+    color = "black",
+    linewidth = 0.7,
+    alpha = 0.5) +
+  
+  # Moving average (bold line)
+  geom_line(
+    data = na.omit(n_akanes_df[, c("Depth", "MA5")]),
+    aes(y = MA5),
+    color = "black",
+    linewidth = 1.8
   ) +
-  labs(y = "CPI", x = "") +
+  
+  labs(
+    y = "CPI ratio",
+    x = ""
+  ) +
+  
   theme_minimal(base_size = 12) +
   theme(
     panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
     panel.grid.minor = element_blank(),
     panel.border = element_rect(fill = NA, color = "gray70", linewidth = 0.8),
     plot.title = element_text(hjust = 0.5, face = "bold", size = 13)
-  )
+  )+
+  scale_x_reverse()
 CPI
 
 
-ACL<- ggplot(n_akanes_df, aes(x = Depth)) +
+
+n_akanes_df$MA5 <- zoo::rollmean(
+  n_akanes_df$`ACL`,
+  k = 3,
+  fill = NA,
+  align = "center",
+  na.rm = TRUE
+)
+
+ACL <- ggplot(n_akanes_df, aes(x = Depth)) +
   geom_rect(data = event_rects,
             aes(xmin = depth_end, xmax = depth_start,
                 ymin = -Inf, ymax = Inf),
             inherit.aes = FALSE,
             fill = "grey80", alpha = 0.3) +
-  geom_point(aes(y = ACL), color = "blue", size = 2, shape = 16, alpha = 0.8) +
-  geom_line(data = na.omit(n_akanes_df[, c("Depth", "ACL")]), 
-            aes(y = ACL), color = "blue", linewidth = 1, alpha = 0.7) +
-  scale_x_reverse(
-    sec.axis = sec_axis(
-      ~ .,
-      
-      breaks = depth_labels,
-      labels = age_breaks/1000
-    )
+  
+  geom_point(aes(y = `ACL`),
+             color = "blue", size = 2, alpha = 0.8) +
+  
+  # Original data
+  geom_line(
+    data = na.omit(n_akanes_df[, c("Depth", "ACL")]),
+    aes(y = `ACL`),
+    color = "blue",
+    linewidth = 0.7,
+    alpha = 0.5) +
+  
+  # Moving average (bold line)
+  geom_line(
+    data = na.omit(n_akanes_df[, c("Depth", "MA5")]),
+    aes(y = MA5),
+    color = "blue",
+    linewidth = 1.8
   ) +
-  labs(y = "ACL", x = "") +
+  
+  labs(
+    y = "ACL ratio",
+    x = ""
+  ) +
+  
   theme_minimal(base_size = 12) +
   theme(
     panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
     panel.grid.minor = element_blank(),
     panel.border = element_rect(fill = NA, color = "gray70", linewidth = 0.8),
     plot.title = element_text(hjust = 0.5, face = "bold", size = 13)
-  )
+  )+
+  scale_x_reverse()
+ACL
 
 
-PAQ<- ggplot(n_akanes_df, aes(x = Depth)) +
+
+
+n_akanes_df$MA5 <- zoo::rollmean(
+  n_akanes_df$`PAQ`,
+  k = 3,
+  fill = NA,
+  align = "center",
+  na.rm = TRUE
+)
+
+PAQ <- ggplot(n_akanes_df, aes(x = Depth)) +
   geom_rect(data = event_rects,
             aes(xmin = depth_end, xmax = depth_start,
                 ymin = -Inf, ymax = Inf),
             inherit.aes = FALSE,
             fill = "grey80", alpha = 0.3) +
-  geom_point(aes(y = PAQ), color = "red", size = 2, shape = 16, alpha = 0.8) +
-  geom_line(data = na.omit(n_akanes_df[, c("Depth", "PAQ")]), 
-            aes(y = PAQ), color = "red", linewidth = 1, alpha = 0.7) +
-  scale_x_reverse(
-    sec.axis = sec_axis(
-      ~ .,
-      breaks = depth_labels,
-      labels = age_breaks/1000
-    )
+  
+  geom_point(aes(y = `PAQ`),
+             color = "red", size = 2, alpha = 0.8) +
+  
+  # Original data
+  geom_line(
+    data = na.omit(n_akanes_df[, c("Depth", "PAQ")]),
+    aes(y = `PAQ`),
+    color = "red",
+    linewidth = 0.7,
+    alpha = 0.5) +
+  
+  # Moving average (bold line)
+  geom_line(
+    data = na.omit(n_akanes_df[, c("Depth", "MA5")]),
+    aes(y = MA5),
+    color = "red",
+    linewidth = 1.8
   ) +
-  labs(y = "PAQ", x = "") +
+  
+  labs(
+    y = "PAQ ratio",
+    x = ""
+  ) +
+  
   theme_minimal(base_size = 12) +
   theme(
     panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
     panel.grid.minor = element_blank(),
     panel.border = element_rect(fill = NA, color = "gray70", linewidth = 0.8),
     plot.title = element_text(hjust = 0.5, face = "bold", size = 13)
-  )
+  )+
+  scale_x_reverse()
+PAQ
 
 
 # There is an outlier in TAR (sample at 215 cm depth = 86.9) (see previous boxplot), so this removed from this plot:
 out_df<- subset(n_akanes_df, TAR < 86)
 
-TAR<- ggplot(out_df, aes(x = Depth)) +
+
+out_df$MA5 <- zoo::rollmean(
+  out_df$`TAR`,
+  k = 3,
+  fill = NA,
+  align = "center",
+  na.rm = TRUE
+)
+
+TAR <- ggplot(out_df, aes(x = Depth)) +
   geom_rect(data = event_rects,
             aes(xmin = depth_end, xmax = depth_start,
                 ymin = -Inf, ymax = Inf),
             inherit.aes = FALSE,
             fill = "grey80", alpha = 0.3) +
-  geom_point(aes(y = TAR), color = "darkred", size = 2, shape = 16, alpha = 0.8) +
-  geom_line(data = na.omit(out_df[, c("Depth", "TAR")]), 
-            aes(y = TAR), color = "darkred", linewidth = 1, alpha = 0.7) +
-  scale_x_reverse(
-    sec.axis = sec_axis(
-      ~ .,
-      breaks = depth_labels,
-      labels = age_breaks/1000
-    )
+  
+  geom_point(aes(y = `TAR`),
+             color = "darkred", size = 2, alpha = 0.8) +
+  
+  # Original data
+  geom_line(
+    data = na.omit(out_df[, c("Depth", "TAR")]),
+    aes(y = `TAR`),
+    color = "darkred",
+    linewidth = 0.7,
+    alpha = 0.5) +
+  
+  # Moving average (bold line)
+  geom_line(
+    data = na.omit(out_df[, c("Depth", "MA5")]),
+    aes(y = MA5),
+    color = "darkred",
+    linewidth = 1.8
   ) +
-  labs(y = "TAR", x = "") +
+  
+  labs(
+    y = "TAR ratio",
+    x = ""
+  ) +
+  
   theme_minimal(base_size = 12) +
   theme(
     panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
     panel.grid.minor = element_blank(),
     panel.border = element_rect(fill = NA, color = "gray70", linewidth = 0.8),
     plot.title = element_text(hjust = 0.5, face = "bold", size = 13)
-  )
+  )+
+  scale_x_reverse()
+TAR
 
 
 
@@ -594,7 +768,7 @@ Summary_df <- n_akanes_df %>%
   )
 
 
-View(Summary_df)
+Summary_df
 
 wilcox.test(dC23 ~ Period, data = n_akanes_df)
 wilcox.test(dC25 ~ Period, data = n_akanes_df)
@@ -616,7 +790,6 @@ colnames(n_akanes_df)
 
 
 
-# Prepare data for short- and mid-chain alkanes (C19, C21, C23, C25)
 df_short_mid <- n_akanes_df %>%
   pivot_longer(cols = c(dC19, dC21, dC23, dC25),
                names_to = "alkane",
@@ -627,10 +800,17 @@ df_short_mid <- n_akanes_df %>%
     alkane == "dC23" ~ "C₂₃",
     alkane == "dC25" ~ "C₂₅"
   )) %>%
+  filter(!is.na(dC)) %>%
   arrange(alkane, Depth) %>%
-  filter(!is.na(dC))
+  group_by(alkane) %>%
+  mutate(dC_MA5 = zoo::rollmean(dC,
+                                k = 3,
+                                fill = NA,
+                                align = "center",
+                                na.rm = TRUE)) %>%
+  ungroup()
 
-# Plot
+
 SHORT_MID_C <- ggplot(df_short_mid, aes(x = Depth, y = dC, group = alkane)) +
   
   geom_rect(data = event_rects,
@@ -642,8 +822,11 @@ SHORT_MID_C <- ggplot(df_short_mid, aes(x = Depth, y = dC, group = alkane)) +
   geom_line(aes(color = alkane_clean, linetype = alkane_clean),
             linewidth = 0.8) +
   
+  geom_line(aes(y = dC_MA5, color = alkane_clean),
+            linewidth = 1.2, alpha = 0.8) +
+  
   geom_point(aes(color = alkane_clean, shape = alkane_clean),
-             size = 3) +
+             size = 2) +
   
   scale_color_manual(name = "n-alkane",
                      values = c(
@@ -709,7 +892,14 @@ df_long <- n_akanes_df %>%
     alkane == "dC31" ~ "C31"
   )) %>%
   arrange(alkane, Depth) %>%
-  filter(!is.na(dC))
+  filter(!is.na(dC)) %>%
+  group_by(alkane) %>%
+  mutate(dC_MA5 = zoo::rollmean(dC,
+                                k = 3,
+                                fill = NA,
+                                align = "center",
+                                na.rm = TRUE)) %>%
+  ungroup()
 
 # Plot
 LONG_C <- ggplot(df_long, aes(x = Depth, y = dC, group = alkane)) +
@@ -722,9 +912,11 @@ LONG_C <- ggplot(df_long, aes(x = Depth, y = dC, group = alkane)) +
   
   geom_line(aes(color = alkane_clean, linetype = alkane_clean),
             linewidth = 0.8) +
+  geom_line(aes(y = dC_MA5, color = alkane_clean),
+            linewidth = 1.2, alpha = 0.8) +
   
   geom_point(aes(color = alkane_clean, shape = alkane_clean),
-             size = 3) +
+             size = 2) +
   
   scale_color_manual(name = "n-alkane",
                      values = c(
@@ -787,7 +979,15 @@ df_short_mid_D <- n_akanes_df %>%
     alkane == "D25" ~ "C25"
   )) %>%
   arrange(alkane, Depth) %>%
-  filter(!is.na(dD))
+  filter(!is.na(dD))%>%
+  group_by(alkane) %>%
+  mutate(dD_MA5 = zoo::rollmean(dD,
+                                k = 3,
+                                fill = NA,
+                                align = "center",
+                                na.rm = TRUE)) %>%
+  ungroup()
+
 
 # Plot
 SHORT_MID_D <- ggplot(df_short_mid_D, aes(x = Depth, y = dD, group = alkane)) +
@@ -800,9 +1000,11 @@ SHORT_MID_D <- ggplot(df_short_mid_D, aes(x = Depth, y = dD, group = alkane)) +
   
   geom_line(aes(color = alkane_clean, linetype = alkane_clean),
             linewidth = 0.8) +
+  geom_line(aes(y = dD_MA5, color = alkane_clean),
+            linewidth = 1.2, alpha = 0.8)+
   
   geom_point(aes(color = alkane_clean, shape = alkane_clean),
-             size = 3) +
+             size = 2) +
   
   scale_color_manual(name = "n-alkane",
                      values = c(
@@ -851,81 +1053,6 @@ SHORT_MID_D <- ggplot(df_short_mid_D, aes(x = Depth, y = dD, group = alkane)) +
 print(SHORT_MID_D)
 
 
-
-
-# Prepare data for short- and mid-chain alkanes (D21, D23, D25)
-df_short_mid_D <- n_akanes_df %>%
-  pivot_longer(cols = c(D21, D23, D25),
-               names_to = "alkane",
-               values_to = "dD") %>%
-  mutate(alkane_clean = case_when(
-    alkane == "D21" ~ "C21",
-    alkane == "D23" ~ "C23",
-    alkane == "D25" ~ "C25"
-  )) %>%
-  arrange(alkane, Depth) %>%
-  filter(!is.na(dD))
-
-# Plot
-SHORT_MID_D <- ggplot(df_short_mid_D, aes(x = Depth, y = dD, group = alkane)) +
-  
-  geom_rect(data = event_rects,
-            aes(xmin = depth_end, xmax = depth_start,
-                ymin = -Inf, ymax = Inf),
-            inherit.aes = FALSE,
-            fill = "grey80", alpha = 0.3) +
-  
-  geom_line(aes(color = alkane_clean, linetype = alkane_clean),
-            linewidth = 0.8) +
-  
-  geom_point(aes(color = alkane_clean, shape = alkane_clean),
-             size = 3) +
-  
-  scale_color_manual(name = "n-alkane",
-                     values = c(
-                       "C21" = "blue",
-                       "C23" = "red",
-                       "C25" = "purple"
-                     )) +
-  
-  scale_linetype_manual(name = "n-alkane",
-                        values = c(
-                          "C21" = "solid",
-                          "C23" = "dashed",
-                          "C25" = "dotdash"
-                        )) +
-  
-  scale_shape_manual(name = "n-alkane",
-                     values = c(
-                       "C21" = 16,
-                       "C23" = 17,
-                       "C25" = 18
-                     )) +
-  
-  scale_x_reverse(
-    sec.axis = sec_axis(
-      ~ .,
-      breaks = depth_labels,
-      labels = age_breaks / 1000
-    )
-  ) +
-  
-  labs(
-    y = expression(delta^{2}*H~("\u2030")),
-    x = "Depth (cm)",
-    title = expression("δ²H of short- and mid-chain n-alkanes (C21, C23, C25)")
-  ) +
-  
-  theme_minimal(base_size = 12) +
-  theme(
-    legend.position = "bottom",
-    legend.box = "vertical",
-    panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
-    panel.grid.minor = element_blank(),
-    panel.border = element_rect(fill = NA, color = "gray70", linewidth = 0.8)
-  )
-
-print(SHORT_MID_D)
 
 
 
@@ -941,7 +1068,14 @@ df_long_D <- n_akanes_df %>%
     alkane == "D31" ~ "C31"
   )) %>%
   arrange(alkane, Depth) %>%
-  filter(!is.na(dD))
+  filter(!is.na(dD))%>%
+  group_by(alkane) %>%
+  mutate(dD_MA5 = zoo::rollmean(dD,
+                                k = 3,
+                                fill = NA,
+                                align = "center",
+                                na.rm = TRUE)) %>%
+  ungroup()
 
 # Plot
 LONG_D <- ggplot(df_long_D, aes(x = Depth, y = dD, group = alkane)) +
@@ -954,9 +1088,11 @@ LONG_D <- ggplot(df_long_D, aes(x = Depth, y = dD, group = alkane)) +
   
   geom_line(aes(color = alkane_clean, linetype = alkane_clean),
             linewidth = 0.8) +
+  geom_line(aes(y = dD_MA5, color = alkane_clean),
+            linewidth = 1.2, alpha = 0.8)+
   
   geom_point(aes(color = alkane_clean, shape = alkane_clean),
-             size = 3) +
+             size = 2) +
   
   scale_color_manual(name = "n-alkane",
                      values = c(
@@ -1008,8 +1144,96 @@ print(LONG_D)
 grid.arrange(LONG_C, LONG_D, SHORT_MID_C,  SHORT_MID_D, ncol = 2)
 
 
+grid.arrange(LONG_C,  SHORT_MID_C, ncol = 1)
 
 
+
+
+# Offset
+# 
+
+# Prepare data 
+df_long_offset <- n_akanes_df %>%
+  pivot_longer(cols = c(terr_aq_D23_D31, terr_aq_D23_D29),
+               names_to = "alkane",
+               values_to = "dD") %>%
+  mutate(alkane_clean = case_when(
+    alkane == "terr_aq_D23_D31" ~ "terr_aq_D23_D31",
+    alkane == "terr_aq_D23_D29" ~ "terr_aq_D23_D29"
+  )) %>%
+  arrange(alkane, Depth) %>%
+  filter(!is.na(dD))%>%
+  group_by(alkane) %>%
+  mutate(dD_MA5 = zoo::rollmean(dD,
+                                k = 3,
+                                fill = NA,
+                                align = "center",
+                                na.rm = TRUE)) %>%
+  ungroup()
+
+# Plot
+offset <- ggplot(df_long_offset, aes(x = Depth, y = dD, group = alkane)) +
+  
+  geom_rect(data = event_rects,
+            aes(xmin = depth_end, xmax = depth_start,
+                ymin = -Inf, ymax = Inf),
+            inherit.aes = FALSE,
+            fill = "grey80", alpha = 0.3) +
+  
+  geom_line(aes(color = alkane_clean, linetype = alkane_clean),
+            linewidth = 0.8) +
+  geom_line(aes(y = dD_MA5, color = alkane_clean),
+            linewidth = 1.2, alpha = 0.8)+
+  
+  geom_point(aes(color = alkane_clean, shape = alkane_clean),
+             size = 2) +
+  
+  scale_color_manual(name = "n-alkane",
+                     values = c(
+                       "terr_aq_D23_D31" = "darkgreen",
+                       "terr_aq_D23_D29" = "brown"
+                     )) +
+  
+  scale_linetype_manual(name = "n-alkane",
+                        values = c(
+                          "terr_aq_D23_D31" = "dashed",
+                          "terr_aq_D23_D29" = "dashed"
+                        )) +
+  
+  scale_x_reverse(
+    sec.axis = sec_axis(
+      ~ .,
+      breaks = depth_labels,
+      labels = age_breaks / 1000
+    )
+  ) +
+  
+  labs(
+    y = expression(delta^{2}*H~("\u2030")),
+    x = "Depth (cm)",
+    title = expression("δ²H offset)")
+  ) +
+  
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "bottom",
+    panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(fill = NA, color = "gray70", linewidth = 0.8)
+  )
+
+print(offset)
+
+grid.arrange(LONG_D,SHORT_MID_D, offset, ncol = 1)
+
+
+
+colnames(df_long_D)
+
+
+
+
+### REGIONAL CLIMATE
 
 clim_df<- read.xlsx("D:/2026/nalkanes-Verdeospesoa/Script_PollenClimate/PredictedMAT2.xlsx", 
                     sheet = "Sheet 1")
